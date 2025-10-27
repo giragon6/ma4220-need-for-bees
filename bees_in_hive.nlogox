@@ -22,6 +22,14 @@ workers-own [
   current-action
   energy
 ]
+drones-own [
+  energy
+  mating-cooldown
+]
+queens-own [
+  eggs-to-lay
+  mating
+]
 patches-own [resource quantity]
 
 
@@ -31,7 +39,8 @@ to setup
   set nothing 0 ;Worker actions
   set gathering-resources 1
   set placing-resources 2
-  set empty 0
+  
+  set empty 0; resources
   set water 1
   set pollen 2
   set honey 3
@@ -40,19 +49,23 @@ to setup
     set shape "butterfly"
     set color yellow
     setxy random-xcor random-ycor
-    set current-action "nothing"
+    set current-action nothing
+    set has-water false
+    set has-pollen false
     set energy 100
   ]
   create-drones 10 [
     set shape "bug"
+    setxy random-xcor random-ycor
     set color green
+    set energy 50
   ]
   create-queens 1 [
     set shape "butterfly"
     set color violet
     set size 2
+    set eggs-to-lay 0
   ]
-  ask patches [set plabel quantity]
 end
 
 
@@ -67,9 +80,13 @@ end
 to step-patches
   if resource = empty [set pcolor black]
   if resource = water [set pcolor blue]
-  if resource = pollen [set pcolor yellow]
+  if resource = pollen [
+    set pcolor yellow
+    if random 100 <= 40 [set resource honey]
+  ]
   if resource = honey [set pcolor yellow - 1]
   if resource = egg [set pcolor white]
+  set plabel quantity
 end
 
 to wiggle 
@@ -79,6 +96,7 @@ end
 
 to step-workers
   if energy = 0 [die]
+  set energy energy - 1
   if current-action = nothing [
     wiggle
     forward 1
@@ -88,25 +106,17 @@ to step-workers
     ]
   ]
   if current-action = gathering-resources [
-    set energy energy - 1
-    if has-water or has-pollen [
+    if has-pollen [
       set current-action placing-resources
       stop
     ]
     if random 100 <= 10 [
-      ifelse random 2 = 1 [set has-pollen true] [set has-water true]
+      set has-pollen true
     ]
   ]
   if current-action = placing-resources [
     wiggle
     forward 1
-    if has-water [
-      ask patch-here [
-        if resource = empty [set resource water set quantity 0]
-        set quantity quantity + 1
-      ]
-      set has-water false
-    ]
     if has-pollen [
       ask patch-here [
         if resource = empty [set resource pollen set quantity 0]
@@ -117,6 +127,35 @@ to step-workers
   ]
 end
 to step-drones
+  if mating-cooldown > 0 [
+    set mating-cooldown mating-cooldown - 1
+    stop
+  ]
+  if energy <= 0 [die]
+  if energy < 50 [
+    carefully [face min-one-of (patches with [resource = honey]) [distance myself]][die]
+    if [resource] of patch-here = honey [
+      ask patch-here [
+        set quantity quantity - 1
+        if quantity = 0 [
+          set resource empty
+        ]
+      ]
+      set energy energy + 10
+    ]
+  ]
+  if energy >= 50 [
+    face min-one-of queens [distance myself]
+    if count queens-here > 0 [
+      set energy energy - 49
+      set mating-cooldown 20
+      ask queens-here [
+        set eggs-to-lay eggs-to-lay + 2
+      ]
+    ]
+  ]
+  ;set energy energy - 1
+  forward 1
 end
 to step-queens
 end]]></code>
@@ -124,6 +163,7 @@ end]]></code>
     <view x="368" wrappingAllowedX="true" y="10" frameRate="30.0" minPycor="-16" height="434" showTickCounter="true" patchSize="13.0" fontSize="10" wrappingAllowedY="true" width="434" tickCounterLabel="ticks" maxPycor="16" updateMode="1" maxPxcor="16" minPxcor="-16"></view>
     <button x="285" y="10" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="55">setup</button>
     <button x="285" y="50" height="40" disableUntilTicks="false" forever="true" kind="Observer" width="55">go</button>
+    <monitor x="860" precision="17" y="100" height="60" fontSize="11" width="100">sum [eggs-to-lay] of queens</monitor>
   </widgets>
   <info>## WHAT IS IT?
 
