@@ -9,6 +9,7 @@ globals [
   nothing
   gathering-resources
   placing-resources
+  eating
   ;Resource types
   empty
   water
@@ -38,13 +39,14 @@ to setup
   set nothing 0 ;Worker actions
   set gathering-resources 1
   set placing-resources 2
+  set eating 3
   
   set empty 0; resources
   set water 1
   set pollen 2
   set honey 3
   set egg 4
-  create-workers 100 [
+  create-workers starting-workers [
     set shape "butterfly"
     set color yellow
     setxy random-xcor random-ycor
@@ -52,7 +54,7 @@ to setup
     set has-pollen false
     set energy 100
   ]
-  create-drones 10 [
+  create-drones starting-drones [
     set shape "bug"
     setxy random-xcor random-ycor
     set color green
@@ -86,7 +88,7 @@ to step-patches
   if resource = honey [set pcolor yellow - 1]
   if resource = egg [
     set pcolor white
-    if random 100 <= 10 [
+    if random 100 <= 1 [
       set quantity 0
       set resource empty
       ifelse random 2 = 0 [
@@ -117,11 +119,16 @@ to wiggle
 end
 
 to step-workers
+  ;set label energy
   if energy = 0 [die]
   set energy energy - 1
   if current-action = nothing [
     wiggle
     forward 1
+    if energy <= 10 [
+      set current-action eating
+      stop
+    ]
     if (random 100 <= 20) [
       set current-action gathering-resources
       stop
@@ -137,14 +144,31 @@ to step-workers
     ]
   ]
   if current-action = placing-resources [
-    wiggle
+    carefully [face min-one-of (patches with [resource = empty]) [distance myself]][carefully [face min-one-of (patches with [resource = pollen]) [distance myself]][]]
     forward 1
     if has-pollen [
-      ask patch-here [
-        if resource = empty [set resource pollen set quantity 0]
-        set quantity quantity + 1
+      if [resource] of patch-here = empty or [resource] of patch-here = pollen [
+        ask patch-here [
+          set resource pollen
+          set quantity quantity + 1
+        ]
+        set has-pollen false
+        set current-action nothing
       ]
-      set has-pollen false
+    ]
+  ]
+  if current-action = eating [
+    carefully [face min-one-of (patches with [resource = honey]) [distance myself]][]
+    forward 1
+    if [resource] of patch-here = honey [
+      ask patch-here [
+        set quantity quantity - 1
+        if quantity = 0 [
+          set resource empty
+        ]
+      ]
+      set energy energy + energy-from-honey
+      set current-action nothing
     ]
   ]
 end
@@ -212,7 +236,9 @@ end]]></code>
     <monitor x="860" precision="17" y="100" height="60" fontSize="11" width="100">sum [eggs-to-lay] of queens</monitor>
     <monitor x="860" precision="17" y="160" height="60" fontSize="11" width="100">(sum [energy] of workers + sum [energy] of drones) / (count workers + count drones)</monitor>
     <monitor x="860" precision="17" y="220" height="60" fontSize="11" width="100">count turtles</monitor>
-    <button x="260" y="90" height="40" disableUntilTicks="false" forever="true" kind="Observer" width="101" display="step queens">ask queens [step-queens]</button>
+    <button x="260" y="90" height="40" disableUntilTicks="false" forever="true" kind="Observer" width="101" display="step queens">ask queens [step-queens]
+ask patches [step-patches]
+tick</button>
     <plot x="960" autoPlotX="true" yMax="10.0" autoPlotY="true" y="100" xMin="0.0" height="175" legend="false" xMax="10.0" yMin="0.0" width="230" display="What Bees?">
       <setup></setup>
       <update></update>
@@ -239,6 +265,8 @@ end]]></code>
     </plot>
     <slider x="110" step="1" y="130" max="100" width="250" display="energy-from-honey" height="50" min="0" direction="Horizontal" default="10.0" variable="energy-from-honey"></slider>
     <slider x="110" step="1" y="180" max="100" width="250" display="energy-to-reproduce" height="50" min="0" direction="Horizontal" default="49.0" variable="energy-to-reproduce"></slider>
+    <input x="260" multiline="false" y="230" height="60" variable="starting-workers" type="number" width="100">100.0</input>
+    <input x="160" multiline="false" y="230" height="60" variable="starting-drones" type="number" width="100">10.0</input>
   </widgets>
   <info>## WHAT IS IT?
 
