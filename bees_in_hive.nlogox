@@ -10,6 +10,7 @@ globals [
   gathering-resources
   placing-resources
   eating
+  moving-resources
   ;Resource types
   empty
   water
@@ -18,7 +19,7 @@ globals [
   egg
 ]
 workers-own [
-  has-pollen
+  current-resource
   current-action
   energy
 ]
@@ -40,6 +41,7 @@ to setup
   set gathering-resources 1
   set placing-resources 2
   set eating 3
+  set moving-resources 4
   
   set empty 0; resources
   set water 1
@@ -51,7 +53,7 @@ to setup
     set color yellow
     setxy random-xcor random-ycor
     set current-action nothing
-    set has-pollen false
+    set current-resource empty
     set energy 100
   ]
   create-drones starting-drones [
@@ -79,6 +81,7 @@ to go
 end
 
 to step-patches
+  if quantity = 0 [set resource empty]
   if resource = empty [set pcolor black]
   if resource = water [set pcolor blue]
   if resource = pollen [
@@ -104,7 +107,7 @@ to step-patches
           set color yellow 
           setxy random-xcor random-ycor 
           set current-action nothing 
-          set has-pollen false 
+          set current-resource empty
           set energy 100
         ]
       ]
@@ -135,24 +138,27 @@ to step-workers
     ]
   ]
   if current-action = gathering-resources [
-    if has-pollen [
+    if current-resource != empty [
       set current-action placing-resources
       stop
     ]
     if random 100 <= 10 [
-      set has-pollen true
+      set current-resource pollen
+    ]
+  ]
     ]
   ]
   if current-action = placing-resources [
-    carefully [face min-one-of (patches with [resource = empty]) [distance myself]][carefully [face min-one-of (patches with [resource = pollen]) [distance myself]][]]
+    carefully [face min-one-of (patches with [resource = pollen]) [distance myself]][carefully [face min-one-of (patches with [resource = empty]) [distance myself]][]]
     forward 1
-    if has-pollen [
-      if [resource] of patch-here = empty or [resource] of patch-here = pollen [
+    if current-resource != empty [
+      if [resource] of patch-here = empty or [resource] of patch-here = current-resource [
+        let local-current-resource current-resource
         ask patch-here [
-          set resource pollen
+          set resource local-current-resource
           set quantity quantity + 1
         ]
-        set has-pollen false
+        set current-resource empty
         set current-action nothing
       ]
     ]
@@ -178,7 +184,7 @@ to step-drones
     stop
   ]
   if energy <= 0 [die]
-  if energy <= 49 [
+  if energy <= energy-to-reproduce [
     carefully [face min-one-of (patches with [resource = honey]) [distance myself]][die]
     if [resource] of patch-here = honey [
       ask patch-here [
@@ -218,7 +224,7 @@ to step-queens
     set color violet
   ]
   if eggs-to-lay > 0 [
-    carefully [face min-one-of (patches with [resource = empty]) [distance myself]][]
+    carefully [face min-one-of (patches with [resource = empty]) [distance myself]][wiggle]
     if [resource] of patch-here = empty [
       ask patch-here [
         set resource egg
